@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "625928800000",
+    "firebase_url": "https://jigsawgame-app-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "jigsawgame-app",
+    "storage_bucket": "jigsawgame-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:625928800000:android:542315cdb038ed65d395e5",
+        "android_client_info": {
+          "package_name": "com.example.jigsaw_multiplayer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBuN1Dj5EzWWi-G8ei2hQd0Ua1ML0cE7Pg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
