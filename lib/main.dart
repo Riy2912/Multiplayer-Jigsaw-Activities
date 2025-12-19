@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 
-// 1. INITIAL SETUP
+// 1. MAIN ENTRY POINT
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   runApp(const MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: LobbyScreen(), // We start at the Lobby now, not the Game
+    home: LobbyScreen(),
   ));
 }
 
@@ -27,7 +27,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isLoading = false;
 
-  // Helper: Generate a random 4-digit Room Code
   String _generateRoomCode() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     Random rnd = Random();
@@ -35,20 +34,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
         4, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
   }
 
-  // Action: Create a new room
   void _createRoom() {
     setState(() => _isLoading = true);
     String newCode = _generateRoomCode();
 
-    // Set initial data for this specific room
     DatabaseReference roomRef = FirebaseDatabase.instance.ref("rooms/$newCode/pieces");
 
-    // Create 4 initial pieces scattered around
+    // STARTING PIECES: All set to 'isPlaced: false' so they appear in the drawer first
     List<Map<String, dynamic>> initialPieces = [
-      {'x': 50, 'y': 200, 'color': 0xFFE53935}, // Red
-      {'x': 150, 'y': 200, 'color': 0xFF43A047}, // Green
-      {'x': 50, 'y': 300, 'color': 0xFF1E88E5}, // Blue
-      {'x': 150, 'y': 300, 'color': 0xFFFDD835}, // Yellow
+      {'x': 0, 'y': 0, 'color': 0xFFE53935, 'isPlaced': false}, // Red
+      {'x': 0, 'y': 0, 'color': 0xFF43A047, 'isPlaced': false}, // Green
+      {'x': 0, 'y': 0, 'color': 0xFF1E88E5, 'isPlaced': false}, // Blue
+      {'x': 0, 'y': 0, 'color': 0xFFFDD835, 'isPlaced': false}, // Yellow
     ];
 
     roomRef.set(initialPieces).then((_) {
@@ -57,7 +54,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
     });
   }
 
-  // Action: Join existing room
   void _joinRoom() {
     String code = _codeController.text.trim().toUpperCase();
     if (code.length == 4) {
@@ -101,17 +97,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton.icon(
-                      icon: const Icon(Icons.add, color: Colors.white), // Force Icon to White
-                      label: const Text(
-                        "CREATE NEW ROOM",
-                        style: TextStyle(
-                          color: Colors.white, // Force Text to White
-                          fontWeight: FontWeight.bold, // Make it bold for better visibility
-                        ),
-                      ),
+                      icon: const Icon(Icons.add, color: Colors.white),
+                      label: const Text("CREATE NEW ROOM",
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple, // Purple Background
-                        foregroundColor: Colors.white,      // White Text/Icon interaction color
+                        backgroundColor: Colors.deepPurple,
+                        foregroundColor: Colors.white,
                       ),
                       onPressed: _isLoading ? null : _createRoom,
                     ),
@@ -155,10 +146,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
 }
 
 // ---------------------------------------------------------
-// SCREEN 2: THE GAME ROOM (Multiplayer Sync)
+// SCREEN 2: THE GAME ROOM (With Drawer)
 // ---------------------------------------------------------
 class JigsawGame extends StatefulWidget {
-  final String roomCode; // We need to know which room we are in
+  final String roomCode;
   const JigsawGame({super.key, required this.roomCode});
 
   @override
@@ -169,11 +160,11 @@ class _JigsawGameState extends State<JigsawGame> {
   late DatabaseReference _roomRef;
   List<Map<dynamic, dynamic>> _pieces = [];
   bool _isLoading = true;
+  final GlobalKey _boardKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
-    // Connect ONLY to this specific room's data
     _roomRef = FirebaseDatabase.instance.ref("rooms/${widget.roomCode}/pieces");
     _listenToUpdates();
   }
@@ -183,53 +174,163 @@ class _JigsawGameState extends State<JigsawGame> {
       if (event.snapshot.exists) {
         final data = event.snapshot.value as List<dynamic>;
         setState(() {
-          _pieces = data.map((e) => e as Map<dynamic, dynamic>).toList();
+          // Convert data and ensure 'isPlaced' defaults to false if missing
+          _pieces = data.map((e) {
+            final map = e as Map<dynamic, dynamic>;
+            map['isPlaced'] = map['isPlaced'] ?? false;
+            return map;
+          }).toList();
           _isLoading = false;
         });
       }
     });
   }
 
-  void _updatePiece(int index, double x, double y) {
-    _roomRef.child(index.toString()).update({'x': x, 'y': y});
+  // LOGIC: Move piece from Drawer -> Board OR Move piece around Board
+  void _updatePiecePosition(int index, Offset globalPosition) {
+    // 1. Get the Board's position on the screen
+    final RenderBox? renderBox = _boardKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final localPosition = renderBox.globalToLocal(globalPosition);
+
+    // 2. Update Firebase (This updates everyone's screen)
+    _roomRef.child(index.toString()).update({
+      'x': localPosition.dx - 40, // Center the piece (80 width / 2)
+      'y': localPosition.dy - 40, // Center the piece (80 height / 2)
+      'isPlaced': true, // It is now on the board!
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Separate pieces into two lists
+    final drawerPieces = _pieces.asMap().entries
+        .where((entry) => entry.value['isPlaced'] == false)
+        .toList();
+
+    final boardPieces = _pieces.asMap().entries
+        .where((entry) => entry.value['isPlaced'] == true)
+        .toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Text("Room: ${widget.roomCode}"),
         backgroundColor: Colors.deepPurple,
-        centerTitle: true,
+        foregroundColor: Colors.white,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
+      body: Column(
         children: [
-          // Render all pieces
-          for (int i = 0; i < _pieces.length; i++)
-            Positioned(
-              left: double.parse(_pieces[i]['x'].toString()),
-              top: double.parse(_pieces[i]['y'].toString()),
-              child: DraggablePiece(
-                index: i,
-                colorValue: _pieces[i]['color'],
-                onDragEnd: (newX, newY) => _updatePiece(i, newX, newY),
-              ),
+          // ------------------------------------------
+          // TOP AREA: THE BOARD (Drop Zone)
+          // ------------------------------------------
+          Expanded(
+            child: DragTarget<int>(
+              key: _boardKey,
+              onAcceptWithDetails: (details) {
+                _updatePiecePosition(details.data, details.offset);
+              },
+              builder: (context, candidateData, rejectedData) {
+                return Container(
+                  color: Colors.grey[200], // The "Table" color
+                  width: double.infinity,
+                  child: Stack(
+                    children: [
+                      // Render pieces that are already on the board
+                      for (var entry in boardPieces)
+                        Positioned(
+                          left: double.parse(entry.value['x'].toString()),
+                          top: double.parse(entry.value['y'].toString()),
+                          child: DraggablePiece(
+                            index: entry.key,
+                            colorValue: entry.value['color'],
+                            onDragEnd: (details) => _updatePiecePosition(entry.key, details.offset),
+                          ),
+                        ),
+
+                      // Helper text if board is empty
+                      if (boardPieces.isEmpty && !_isLoading)
+                        const Center(child: Text("Drag pieces here!", style: TextStyle(color: Colors.grey))),
+                    ],
+                  ),
+                );
+              },
             ),
+          ),
+
+          // ------------------------------------------
+          // BOTTOM AREA: THE DRAWER (Scrollable)
+          // ------------------------------------------
+          Container(
+            height: 120,
+            decoration: const BoxDecoration(
+              color: Color(0xFF8D6E63), // Brown/Wooden color
+              boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black26)],
+            ),
+            child: drawerPieces.isEmpty
+                ? const Center(child: Text("Empty Drawer", style: TextStyle(color: Colors.white)))
+                : ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(10),
+              itemCount: drawerPieces.length,
+              itemBuilder: (context, listIndex) {
+                final originalIndex = drawerPieces[listIndex].key;
+                final pieceData = drawerPieces[listIndex].value;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  // We wrap drawer items in Draggable too!
+                  child: Draggable<int>(
+                    data: originalIndex, // We pass the ID of the piece
+                    feedback: Transform.scale(
+                      scale: 1.1,
+                      child: _buildPieceBox(pieceData['color'], originalIndex, true),
+                    ),
+                    childWhenDragging: Opacity(
+                        opacity: 0.3,
+                        child: _buildPieceBox(pieceData['color'], originalIndex, false)
+                    ),
+                    child: _buildPieceBox(pieceData['color'], originalIndex, false),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  // Helper to draw the colored box (Used by both Drawer and Board)
+  Widget _buildPieceBox(int colorValue, int index, bool isDragging) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: Color(colorValue),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: isDragging
+            ? [const BoxShadow(color: Colors.black45, blurRadius: 10, spreadRadius: 2)]
+            : [const BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
+      ),
+      child: Center(
+        child: Text(
+          "${index + 1}",
+          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
 }
 
 // ---------------------------------------------------------
-// WIDGET: INDIVIDUAL PIECE (UI Polish)
+// WIDGET: DRAGGABLE PIECE (For the Board)
 // ---------------------------------------------------------
 class DraggablePiece extends StatelessWidget {
   final int index;
   final int colorValue;
-  final Function(double, double) onDragEnd;
+  final Function(DraggableDetails) onDragEnd;
 
   const DraggablePiece({
     super.key,
@@ -240,21 +341,12 @@ class DraggablePiece extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanUpdate: (details) {
-        // We use relative movement, but we update the parent via state
-      },
-      child: Draggable(
-        feedback: _buildBox(true), // What it looks like while dragging
-        childWhenDragging: Opacity(opacity: 0.3, child: _buildBox(false)), // Original spot
-        child: _buildBox(false), // Normal look
-        onDragEnd: (details) {
-          // IMPORTANT: Convert global screen coordinates to local Stack coordinates
-          // "details.offset" gives the drop position relative to the screen
-          // We subtract the AppBar height (approx 80) to correct it.
-          onDragEnd(details.offset.dx, details.offset.dy - 80);
-        },
-      ),
+    return Draggable<int>(
+      data: index,
+      feedback: _buildBox(true),
+      childWhenDragging: Opacity(opacity: 0.3, child: _buildBox(false)),
+      onDragEnd: onDragEnd,
+      child: _buildBox(false),
     );
   }
 
