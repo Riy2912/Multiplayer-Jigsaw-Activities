@@ -5,12 +5,12 @@ A real-time multiplayer jigsaw puzzle game built with **Flutter** and **Firebase
 ## 📱 Features
 
 * **Real-Time Multiplayer:** Move a piece on one phone, and it moves on all other phones in the room instantly.
+* **Scrollable Piece Drawer:** Keeps the board clean! Unplaced pieces sit in a wooden tray at the bottom until you drag them onto the board.
 * **Lobby System:**
     * **Create Room:** Generates a unique 4-letter room code (e.g., `ABCD`).
     * **Join Room:** Friends can enter the code to join the same board.
-* **Drag & Drop Gameplay:** Smooth touch controls to pick up and place puzzle pieces.
+* **Smart Drag & Drop:** Pieces are tracked globally. If a player drops a piece, it updates for everyone.
 * **Cross-Device Sync:** Powered by Firebase Realtime Database for millisecond-latency updates.
-* **Custom App Icon:** Professional launcher icon generated for Android.
 
 ## 🛠️ Tech Stack
 
@@ -24,7 +24,7 @@ Follow these instructions to run the project on your local machine.
 
 ### Prerequisites
 * [Flutter SDK](https://flutter.dev/docs/get-started/install) installed.
-* Android Studio (with Android SDK 34/UpsideDownCake).
+* Android Studio (with Android SDK 34).
 * A Firebase Project.
 
 ### Installation
@@ -40,37 +40,24 @@ Follow these instructions to run the project on your local machine.
     flutter pub get
     ```
 
-3.  **Firebase Setup (Crucial):**
-    * Create a project in the [Firebase Console](https://console.firebase.google.com/).
-    * Add an Android App (package name: `com.example.jigsaw_multiplayer`).
-    * Download the `google-services.json` file.
-    * Place it in: `android/app/google-services.json`.
-    * **Enable Realtime Database** in Firebase and set rules to `read: true, write: true` (for testing).
+3.  **Firebase Setup:**
+    * Create a project in [Firebase Console](https://console.firebase.google.com/).
+    * Download `google-services.json` and place it in `android/app/`.
+    * **Enable Realtime Database** and set rules to `true`.
 
 4.  **Run the App:**
     ```bash
     flutter run
     ```
 
-## 📦 Building the APK
-
-To generate a shareable APK file for Android phones:
-
-1.  Clean the project:
-    ```bash
-    flutter clean
-    flutter pub get
-    ```
-2.  Build the release version:
-    ```bash
-    flutter build apk --release --no-shrink
-    ```
-3.  Locate the file at:
-    `build/app/outputs/flutter-apk/app-release.apk`
-
 ## 🎮 How to Play
 
-1.  Open the app on two different devices.
-2.  **Player 1:** Taps "CREATE NEW ROOM". A room code (e.g., `XJTP`) will appear at the top.
-3.  **Player 2:** Enters `XJTP` in the text box and taps "JOIN ROOM".
-4.  Both players can now drag pieces, and the board will stay in sync!
+1.  **Host:** Tap "CREATE NEW ROOM". A code (e.g., `XJTP`) will appear.
+2.  **Guest:** Enter `XJTP` and tap "JOIN ROOM".
+3.  **Play:** Drag pieces from the bottom **Drawer** onto the main board.
+4.  **Collaborate:** Watch as your friend moves pieces in real-time!
+
+## 🔮 Future Improvements
+* Add "Snapping" logic so pieces lock into the correct position.
+* Add different puzzle images.
+* Add a "Win" screen when all pieces are placed.
