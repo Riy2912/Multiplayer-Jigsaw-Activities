@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 
-// 1. MAIN ENTRY POINT
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -14,11 +13,10 @@ void main() async {
 }
 
 // ---------------------------------------------------------
-// SCREEN 1: THE LOBBY (Create or Join)
+// SCREEN 1: THE LOBBY (Mode Selection)
 // ---------------------------------------------------------
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
-
   @override
   State<LobbyScreen> createState() => _LobbyScreenState();
 }
@@ -27,118 +25,64 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isLoading = false;
 
-  String _generateRoomCode() {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    Random rnd = Random();
-    return String.fromCharCodes(Iterable.generate(
-        4, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
-  }
+  final List<String> numberLabels = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+  final List<String> fruitLabels = ["Apple", "Banana", "Strawberry", "Pineapple", "Cantaloupe", "Pomegranate", "Custard Apple", "Kiwi", "Grapefruit"];
+  final List<String> fruitIcons = ["🍎", "🍌", "🍓", "🍍", "🍈", "🍎", "🍏", "🥝", "🍊"];
 
-  void _createRoom() {
+  void _createRoom(String mode) {
     setState(() => _isLoading = true);
-    String newCode = _generateRoomCode();
+    String newCode = List.generate(4, (_) => String.fromCharCode(Random().nextInt(26) + 65)).join();
 
-    DatabaseReference roomRef = FirebaseDatabase.instance.ref("rooms/$newCode/pieces");
+    DatabaseReference roomRef = FirebaseDatabase.instance.ref("rooms/$newCode");
 
-    // STARTING PIECES: All set to 'isPlaced: false' so they appear in the drawer first
-    List<Map<String, dynamic>> initialPieces = [
-      {'x': 0, 'y': 0, 'color': 0xFFE53935, 'isPlaced': false}, // Red
-      {'x': 0, 'y': 0, 'color': 0xFF43A047, 'isPlaced': false}, // Green
-      {'x': 0, 'y': 0, 'color': 0xFF1E88E5, 'isPlaced': false}, // Blue
-      {'x': 0, 'y': 0, 'color': 0xFFFDD835, 'isPlaced': false}, // Yellow
-    ];
+    List<String> labels = mode == "Numbers" ? numberLabels : fruitLabels;
+    List<String> hints = mode == "Numbers" ? List.generate(9, (i) => "${i + 1}") : fruitIcons;
 
-    roomRef.set(initialPieces).then((_) {
+    List<Map<String, dynamic>> pieces = List.generate(9, (i) => {
+      'x': 0.0,
+      'y': 0.0,
+      'color': (Colors.primaries[i % Colors.primaries.length]).value,
+      'label': labels[i],
+      'hint': hints[i],
+      'isPlaced': false,
+      'isLocked': false,
+    });
+
+    roomRef.set({'pieces': pieces, 'mode': mode}).then((_) {
       setState(() => _isLoading = false);
       _enterGame(newCode);
     });
   }
 
-  void _joinRoom() {
-    String code = _codeController.text.trim().toUpperCase();
-    if (code.length == 4) {
-      _enterGame(code);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a 4-letter code")),
-      );
-    }
-  }
-
   void _enterGame(String roomCode) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => JigsawGame(roomCode: roomCode)),
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (_) => JigsawGame(roomCode: roomCode)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200],
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text("🧩 Jigsaw Party",
-                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.deepPurple)
-                  ),
-                  const SizedBox(height: 30),
-
-                  // CREATE BUTTON
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.add, color: Colors.white),
-                      label: const Text("CREATE NEW ROOM",
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _isLoading ? null : _createRoom,
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-                  const Text("- OR -", style: TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 20),
-
-                  // JOIN INPUT
-                  TextField(
-                    controller: _codeController,
-                    textAlign: TextAlign.center,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(
-                      hintText: "ENTER ROOM CODE",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // JOIN BUTTON
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton(
-                      onPressed: _joinRoom,
-                      child: const Text("JOIN ROOM"),
-                    ),
-                  ),
-                ],
-              ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text("🧩 Jigsaw Party", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 30),
+            const Text("Select Mode to Create:"),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(onPressed: () => _createRoom("Numbers"), child: const Text("Numbers")),
+                const SizedBox(width: 10),
+                ElevatedButton(onPressed: () => _createRoom("Fruits"), child: const Text("Fruits")),
+              ],
             ),
-          ),
+            const Divider(height: 50, indent: 50, endIndent: 50),
+            SizedBox(
+              width: 200,
+              child: TextField(controller: _codeController, textAlign: TextAlign.center, decoration: const InputDecoration(hintText: "Enter Room Code")),
+            ),
+            ElevatedButton(onPressed: () => _enterGame(_codeController.text.toUpperCase()), child: const Text("JOIN")),
+          ],
         ),
       ),
     );
@@ -146,12 +90,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
 }
 
 // ---------------------------------------------------------
-// SCREEN 2: THE GAME ROOM (With Drawer)
+// SCREEN 2: THE GAME ROOM
 // ---------------------------------------------------------
 class JigsawGame extends StatefulWidget {
   final String roomCode;
   const JigsawGame({super.key, required this.roomCode});
-
   @override
   State<JigsawGame> createState() => _JigsawGameState();
 }
@@ -159,215 +102,160 @@ class JigsawGame extends StatefulWidget {
 class _JigsawGameState extends State<JigsawGame> {
   late DatabaseReference _roomRef;
   List<Map<dynamic, dynamic>> _pieces = [];
-  bool _isLoading = true;
   final GlobalKey _boardKey = GlobalKey();
+  static const double boardSize = 300.0;
+  static const double slotSize = 100.0;
 
   @override
   void initState() {
     super.initState();
     _roomRef = FirebaseDatabase.instance.ref("rooms/${widget.roomCode}/pieces");
-    _listenToUpdates();
-  }
-
-  void _listenToUpdates() {
     _roomRef.onValue.listen((event) {
       if (event.snapshot.exists) {
         final data = event.snapshot.value as List<dynamic>;
         setState(() {
-          // Convert data and ensure 'isPlaced' defaults to false if missing
-          _pieces = data.map((e) {
-            final map = e as Map<dynamic, dynamic>;
-            map['isPlaced'] = map['isPlaced'] ?? false;
-            return map;
-          }).toList();
-          _isLoading = false;
+          _pieces = data.map((e) => e as Map<dynamic, dynamic>).toList();
         });
       }
     });
   }
 
-  // LOGIC: Move piece from Drawer -> Board OR Move piece around Board
   void _updatePiecePosition(int index, Offset globalPosition) {
-    // 1. Get the Board's position on the screen
+    // 1. Check if piece is already locked
+    if (_pieces[index]['isLocked'] == true) return;
+
     final RenderBox? renderBox = _boardKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
-
     final localPosition = renderBox.globalToLocal(globalPosition);
 
-    // 2. Update Firebase (This updates everyone's screen)
-    _roomRef.child(index.toString()).update({
-      'x': localPosition.dx - 40, // Center the piece (80 width / 2)
-      'y': localPosition.dy - 40, // Center the piece (80 height / 2)
-      'isPlaced': true, // It is now on the board!
-    });
+    // Use center for snatch detection
+    double centerX = localPosition.dx + (slotSize / 2);
+    double centerY = localPosition.dy + (slotSize / 2);
+
+    if (centerX >= 0 && centerX < boardSize && centerY >= 0 && centerY < boardSize) {
+      int col = (centerX / slotSize).floor().clamp(0, 2);
+      int row = (centerY / slotSize).floor().clamp(0, 2);
+
+      double snappedX = col * slotSize;
+      double snappedY = row * slotSize;
+
+      // Check if this is the CORRECT slot (Win logic per piece)
+      double correctX = (index % 3) * slotSize;
+      double correctY = (index ~/ 3) * slotSize;
+      bool isCorrect = (snappedX == correctX && snappedY == correctY);
+
+      _roomRef.child(index.toString()).update({
+        'x': snappedX,
+        'y': snappedY,
+        'isPlaced': true,
+        'isLocked': isCorrect, // LOCK PIECE IF CORRECT
+      });
+    } else {
+      _roomRef.child(index.toString()).update({'isPlaced': false, 'isLocked': false});
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Separate pieces into two lists
-    final drawerPieces = _pieces.asMap().entries
-        .where((entry) => entry.value['isPlaced'] == false)
-        .toList();
-
-    final boardPieces = _pieces.asMap().entries
-        .where((entry) => entry.value['isPlaced'] == true)
-        .toList();
+    final drawerPieces = _pieces.asMap().entries.where((e) => !e.value['isPlaced']).toList();
+    final boardPieces = _pieces.asMap().entries.where((e) => e.value['isPlaced']).toList();
+    bool gameWon = _pieces.isNotEmpty && _pieces.every((p) => p['isLocked'] == true);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Room: ${widget.roomCode}"),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: Text("Room: ${widget.roomCode}")),
       body: Column(
         children: [
-          // ------------------------------------------
-          // TOP AREA: THE BOARD (Drop Zone)
-          // ------------------------------------------
+          if (gameWon) Container(width: double.infinity, color: Colors.green, padding: const EdgeInsets.all(10), child: const Text("🏆 PERFECT!", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
           Expanded(
-            child: DragTarget<int>(
-              key: _boardKey,
-              onAcceptWithDetails: (details) {
-                _updatePiecePosition(details.data, details.offset);
-              },
-              builder: (context, candidateData, rejectedData) {
-                return Container(
-                  color: Colors.grey[200], // The "Table" color
-                  width: double.infinity,
+            child: Center(
+              child: DragTarget<int>(
+                key: _boardKey,
+                onAcceptWithDetails: (details) => _updatePiecePosition(details.data, details.offset),
+                builder: (context, _, __) => Container(
+                  width: boardSize, height: boardSize,
+                  decoration: BoxDecoration(border: Border.all(color: Colors.black45), color: Colors.white),
                   child: Stack(
                     children: [
-                      // Render pieces that are already on the board
+                      // GRID BACKGROUND (Hints)
+                      GridView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3),
+                        itemCount: 9,
+                        itemBuilder: (ctx, i) => Container(
+                          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade100)),
+                          child: Center(child: Text(_pieces.isNotEmpty ? _pieces[i]['hint'] : "", style: const TextStyle(fontSize: 30, color: Colors.black12))),
+                        ),
+                      ),
+                      // PLACED PIECES
                       for (var entry in boardPieces)
                         Positioned(
-                          left: double.parse(entry.value['x'].toString()),
-                          top: double.parse(entry.value['y'].toString()),
-                          child: DraggablePiece(
-                            index: entry.key,
-                            colorValue: entry.value['color'],
-                            onDragEnd: (details) => _updatePiecePosition(entry.key, details.offset),
-                          ),
+                          left: entry.value['x'].toDouble(),
+                          top: entry.value['y'].toDouble(),
+                          child: DraggablePiece(index: entry.key, data: entry.value, onDragEnd: (d) => _updatePiecePosition(entry.key, d.offset)),
                         ),
-
-                      // Helper text if board is empty
-                      if (boardPieces.isEmpty && !_isLoading)
-                        const Center(child: Text("Drag pieces here!", style: TextStyle(color: Colors.grey))),
                     ],
                   ),
-                );
-              },
+                ),
+              ),
             ),
           ),
-
-          // ------------------------------------------
-          // BOTTOM AREA: THE DRAWER (Scrollable)
-          // ------------------------------------------
           Container(
-            height: 120,
-            decoration: const BoxDecoration(
-              color: Color(0xFF8D6E63), // Brown/Wooden color
-              boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black26)],
-            ),
-            child: drawerPieces.isEmpty
-                ? const Center(child: Text("Empty Drawer", style: TextStyle(color: Colors.white)))
-                : ListView.builder(
+            height: 120, color: Colors.brown[400],
+            child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.all(10),
               itemCount: drawerPieces.length,
-              itemBuilder: (context, listIndex) {
-                final originalIndex = drawerPieces[listIndex].key;
-                final pieceData = drawerPieces[listIndex].value;
-
+              itemBuilder: (ctx, i) {
+                int idx = drawerPieces[i].key;
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  // We wrap drawer items in Draggable too!
-                  child: Draggable<int>(
-                    data: originalIndex, // We pass the ID of the piece
-                    feedback: Transform.scale(
-                      scale: 1.1,
-                      child: _buildPieceBox(pieceData['color'], originalIndex, true),
-                    ),
-                    childWhenDragging: Opacity(
-                        opacity: 0.3,
-                        child: _buildPieceBox(pieceData['color'], originalIndex, false)
-                    ),
-                    child: _buildPieceBox(pieceData['color'], originalIndex, false),
-                  ),
+                  padding: const EdgeInsets.all(8.0),
+                  child: DraggablePiece(index: idx, data: drawerPieces[i].value, onDragEnd: (d) => _updatePiecePosition(idx, d.offset)),
                 );
               },
             ),
-          ),
+          )
         ],
-      ),
-    );
-  }
-
-  // Helper to draw the colored box (Used by both Drawer and Board)
-  Widget _buildPieceBox(int colorValue, int index, bool isDragging) {
-    return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(
-        color: Color(colorValue),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: isDragging
-            ? [const BoxShadow(color: Colors.black45, blurRadius: 10, spreadRadius: 2)]
-            : [const BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
-      ),
-      child: Center(
-        child: Text(
-          "${index + 1}",
-          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-        ),
       ),
     );
   }
 }
 
-// ---------------------------------------------------------
-// WIDGET: DRAGGABLE PIECE (For the Board)
-// ---------------------------------------------------------
 class DraggablePiece extends StatelessWidget {
   final int index;
-  final int colorValue;
+  final Map<dynamic, dynamic> data;
   final Function(DraggableDetails) onDragEnd;
-
-  const DraggablePiece({
-    super.key,
-    required this.index,
-    required this.colorValue,
-    required this.onDragEnd
-  });
+  const DraggablePiece({super.key, required this.index, required this.data, required this.onDragEnd});
 
   @override
   Widget build(BuildContext context) {
-    return Draggable<int>(
-      data: index,
-      feedback: _buildBox(true),
-      childWhenDragging: Opacity(opacity: 0.3, child: _buildBox(false)),
-      onDragEnd: onDragEnd,
-      child: _buildBox(false),
-    );
-  }
+    bool locked = data['isLocked'] ?? false;
 
-  Widget _buildBox(bool isDragging) {
-    return Container(
-      width: 80,
-      height: 80,
+    Widget content = Container(
+      width: 90, height: 90,
       decoration: BoxDecoration(
-        color: Color(colorValue),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: isDragging
-            ? [const BoxShadow(color: Colors.black45, blurRadius: 10, spreadRadius: 2)]
-            : [const BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
-        border: Border.all(color: Colors.white, width: 2),
+        color: Color(data['color']),
+        borderRadius: BorderRadius.circular(8),
+        border: locked ? Border.all(color: Colors.white, width: 3) : null,
       ),
       child: Center(
-        child: Text(
-          "${index + 1}",
-          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Text(data['label'], textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, decoration: TextDecoration.none)),
+            if (locked) const Positioned(bottom: 2, right: 2, child: Icon(Icons.lock, color: Colors.white, size: 14)),
+          ],
         ),
       ),
+    );
+
+    // If locked, we return the container WITHOUT Draggable
+    if (locked) return content;
+
+    return Draggable<int>(
+      data: index,
+      feedback: Material(color: Colors.transparent, child: Opacity(opacity: 0.8, child: content)),
+      childWhenDragging: Opacity(opacity: 0.2, child: content),
+      onDragEnd: onDragEnd,
+      child: content,
     );
   }
 }
